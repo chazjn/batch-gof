@@ -1,33 +1,117 @@
 @ECHO OFF
 SETLOCAL ENABLEDELAYEDEXPANSION
 
-IF "%3"=="" GOTO HELP
+:: Set the global vars
+SET WIDTH=0
+SET HEIGHT=0
+SET DENSITY=0
+SET CELLCOUNT=0
+SET GENERATION=0
+SET ALIVECOUNT=0
+
+:: Now check the command line params
+IF "%1"=="" (
+	GOTO HELP
+)
+
+IF NOT "%3"=="" (
+	CALL :RANDOM %1 %2 %3 
+) ELSE (
+	IF EXIST "%1" (
+		CALL :LOAD %1
+	) ELSE (
+		ECHO File %1 not found.
+		GOTO EOF
+	)
+)
+
+:: Calculate the number of cells in grid and then kick of the process loop
+SET /A CELLCOUNT=%WIDTH%*%HEIGHT%
+GOTO PROCESS
+
+::::::::::::::::::::
+:: Generate a random grid 'A'. This grid holds the cell layout for display
+:: Also for safety, delete any grid 'B' cells that might be in memory
+:: Grid 'B' used to store temporary cell values before they are assigned to grid 'A' 
+:RANDOM
 SET WIDTH=%1
 SET HEIGHT=%2
 SET DENSITY=%3
-SET GENERATION=0
-SET /A CELLCOUNT=%WIDTH%*%HEIGHT%
-SET ALIVECOUNT=0
 
-::::::::::::::::::::
-:: Generate grid 'A'. This grid holds the cell layout for display
-:: Also for safety, delete any grid 'B' cells that might be in memory
-:: Grid 'B' used to store temporary cell values before they are assigned to grid 'A' 
 FOR /L %%h IN (1, 1, %HEIGHT%) DO (
-		FOR /L %%w IN (1, 1, %WIDTH%) DO (
-						
-			SET /A RAND=!RANDOM!*100/32768
+	FOR /L %%w IN (1, 1, %WIDTH%) DO (
+					
+		SET /A RAND=!RANDOM!*100/32768
 
-			IF !DENSITY! GEQ !RAND! (
-				SET A[%%w][%%h]=@
-				SET /A ALIVECOUNT=!ALIVECOUNT!+1
-			) ELSE (
-				SET "A[%%w][%%h]= "
-			)
-			
-			SET B[%%w][%%h]=
-		)	
+		IF !DENSITY! GEQ !RAND! (
+			SET A[%%w][%%h]=@
+			SET /A ALIVECOUNT=!ALIVECOUNT!+1
+		) ELSE (
+			SET "A[%%w][%%h]= "
+		)
+		
+		SET B[%%w][%%h]=
+	)	
 )
+GOTO EOF
+
+
+::::::::::::::::::::::::::::::::::
+:: Load file specified in %1 and load into grid 'A'
+:: 
+:LOAD
+FOR /F "delims=" %%a IN (%1) DO (
+	SET /A HEIGHT=!HEIGHT!+1
+	SET LINE=%%a
+	CALL :GET_LINE_LENGTH "!LINE!"	
+	SET /A LASTINDEX=!LINELENGTH!-1
+	
+	IF !LINELENGTH! GTR !WIDTH! (
+		SET WIDTH=!LINELENGTH!
+	)
+
+	REM Now build the alive values of grid 'A' into memory
+	FOR /L %%c in (0, 1, !LASTINDEX!) do (
+		SET "CHAR=!LINE:~%%c,1!"
+		SET /A INDEX=%%c+1
+		IF "!CHAR!"=="@" (
+			SET A[!INDEX!][!HEIGHT!]=!CHAR!
+			SET /A ALIVECOUNT=!ALIVECOUNT!+1
+		)
+	)
+				
+) 
+
+:: Now build the empty values of grid 'A' into memory
+FOR /L %%h IN (1, 1, %HEIGHT%) DO (
+	FOR /L %%w IN (1, 1, %WIDTH%) DO (
+					
+		IF NOT DEFINED A[%%w][%%h] (
+			SET "A[%%w][%%h]= "
+		)
+
+		SET B[%%w][%%h]=
+	)	
+)
+GOTO EOF
+
+
+
+:GET_LINE_LENGTH
+SET "THISLINE=%1"
+SET LINELENGTH=0
+:LINECOUNTERLOOP
+IF DEFINED THISLINE (
+    rem shorten string by one character
+    SET THISLINE=%THISLINE:~1%
+    rem increment the string count variable %LINELENGTH%
+    SET /A LINELENGTH=!LINELENGTH!+1
+    rem repeat until string is null
+    GOTO LINECOUNTERLOOP
+)
+GOTO EOF
+
+
 
 ::::::::::::::::::::::::::::::
 :: TOP OF MAIN PROCESSING LOOP
@@ -164,14 +248,17 @@ GOTO EOF
 
 :HELP
 ECHO/
-ECHO 'Conway's Game of Life' - Batch Edition - Chazjn 01/03/2017
-ECHO ===========================================================
+ECHO 'Conway's Game of Life' - Batch Edition - Chazjn 0.2 06/03/2017
+ECHO ===============================================================
 ECHO Usage is as follows:
 ECHO 	life [width] [height] [%%density]
+ECHO 	life [input file]
 ECHO E.g.
 ECHO 	life 15 10 25
+ECHO 	life gliders.txt
 ECHO/
 ECHO For more infomation visit: https://en.wikipedia.org/wiki/Conway's_Game_of_Life
+ECHO 							https://github.com/chazjn/batch-gof
 GOTO EOF
 
 :EOF
